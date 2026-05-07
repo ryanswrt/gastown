@@ -1,0 +1,66 @@
+name: Update Nix vendorHash
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-vendor-hash:
+    name: Bump flake vendorHash
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Run nix-update
+        id: update
+        run: |
+          set -euo pipefail
+          old=$(grep -oE 'vendorHash = "sha256-[A-Za-z0-9+/=]+"' flake.nix | head -1 | cut -d'"' -f2)
+          nix run nixpkgs#nix-update -- --flake --version=skip gt
+          new=$(grep -oE 'vendorHash = "sha256-[A-Za-z0-9+/=]+"' flake.nix | head -1 | cut -d'"' -f2)
+          if [ "$old" = "$new" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "changed=true"
+              echo "old_hash=$old"
+              echo "new_hash=$new"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify full build with new hash
+        if: steps.update.outputs.changed == 'true'
+        run: nix build .#gt --print-build-logs
+
+      - name: Open pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        env:
+          OLD_HASH: ${{ steps.update.outputs.old_hash }}
+          NEW_HASH: ${{ steps.update.outputs.new_hash }}
+        with:
+          commit-message: "chore(nix): bump vendorHash"
+          title: "chore(nix): bump vendorHash"
+          body: |
+            Automated bump of `vendorHash` in `flake.nix` after Go module changes on `main`.
+
+            - Old: `${{ steps.update.outputs.old_hash }}`
+            - New: `${{ steps.update.outputs.new_hash }}`
+
+            Computed via `nix-update --flake --version=skip gt` and verified with a full `nix build .#gt`.
+          branch: bot/update-vendor-hash
+          delete-branch: true
+          labels: |
+            nix
+            automated
