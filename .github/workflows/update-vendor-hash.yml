@@ -1,5 +1,12 @@
 name: Update Nix vendorHash
 
+# PREREQUISITE (one-time repo setting):
+#   Settings -> Actions -> General -> Workflow permissions:
+#     - Read and write permissions
+#     - Allow GitHub Actions to create and approve pull requests
+# Without this, the "Open pull request" step fails with:
+#   "GitHub Actions is not permitted to create or approve pull requests."
+
 on:
   push:
     branches: [main]
