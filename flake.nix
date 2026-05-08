@@ -21,14 +21,23 @@
           inherit system;
         };
         beadsPkg = beads.packages.${system}.default;
+        # Single source of truth: parse Version from internal/cmd/version.go
+        # so the flake never drifts from the Go const.
+        versionMatch = builtins.match
+          ".*Version = \"([^\"]+)\".*"
+          (builtins.readFile ./internal/cmd/version.go);
+        gtVersion =
+          if versionMatch == null
+          then throw "could not parse Version from internal/cmd/version.go"
+          else builtins.head versionMatch;
       in
       {
         packages = {
           gt = pkgs.buildGoModule {
             pname = "gt";
-            version = "1.0.0";
+            version = gtVersion;
             src = ./.;
-            vendorHash = "sha256-mJzpsl4XnIm3ZSg7fFn0MOdQQW1bdOkAJ+TikiLMXJM=";
+            vendorHash = "sha256-PQT/Xq9na3vI8Oy9INBYJf3GsiN5IxAVCxrNLhyIpO8=";
 
             ldflags = [
               "-X github.com/gastownhall/gastown/internal/cmd.Build=nix"
